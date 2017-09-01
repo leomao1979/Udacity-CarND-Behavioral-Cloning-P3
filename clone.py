@@ -54,8 +54,7 @@ def build_simple_model():
     return model
 
 def resize_normalize(image):
-#    from keras.backend import tf
-    import tensorflow as tf
+    from keras.backend import tf
     resized = tf.image.resize_images(image, (32, 32))
     normalized = resized / 255.0 - 0.5
     return normalized
