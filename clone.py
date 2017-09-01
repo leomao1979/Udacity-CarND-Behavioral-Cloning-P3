@@ -53,16 +53,16 @@ def build_simple_model():
     model.add(Dense(1))
     return model
 
-def resize_normalize(image):
+def resize_normalize(image, new_size):
     from keras.backend import tf
-    resized = tf.image.resize_images(image, (32, 32))
+    resized = tf.image.resize_images(image, new_size)
     normalized = resized / 255.0 - 0.5
     return normalized
 
 def build_lenet_model():
     model = Sequential()
     model.add(Cropping2D(cropping = ((75, 25), (0, 0)), input_shape = (160, 320, 3)))
-    model.add(Lambda(resize_normalize))
+    model.add(Lambda(resize_normalize, arguments = {'new_size': (32, 32)}))
     model.add(Conv2D(6, (5, 5), activation = 'relu'))
     model.add(MaxPooling2D())
     model.add(Conv2D(16, (5, 5), activation = 'relu'))
@@ -76,13 +76,29 @@ def build_lenet_model():
     model.add(Dense(1))
     return model
 
+def build_nvidia_model():
+    model = Sequential()
+    model.add(Cropping2D(cropping = ((75, 25), (0, 0)), input_shape = (160, 320, 3)))
+    model.add(Lambda(resize_normalize, arguments = {'new_size': (66, 200)}))
+    model.add(Conv2D(24, kernel_size = (5, 5), strides=(2, 2), activation = 'relu'))
+    model.add(Conv2D(36, kernel_size = (5, 5), strides=(2, 2), activation = 'relu'))
+    model.add(Conv2D(48, kernel_size = (5, 5), strides=(2, 2), activation = 'relu'))
+    model.add(Conv2D(64, kernel_size = (3, 3), activation = 'relu'))
+    model.add(Conv2D(64, kernel_size = (3, 3), activation = 'relu'))
+    model.add(Flatten())
+    model.add(Dense(100))
+    model.add(Dense(50))
+    model.add(Dense(10))
+    model.add(Dense(1))
+    return model
+
 images, steerings = load_driving_data()
 images, steerings = augment_training_data(images, steerings)
 X_train = np.array(images)
 y_train = np.array(steerings)
 print('X_train.shape: {}, y_train.shape: {}'.format(X_train.shape, y_train.shape))
 
-model = build_lenet_model()
+model = build_nvidia_model()
 model.compile(loss='mse', optimizer='adam')
 model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, epochs = 8)
 model.save('model.h5')
