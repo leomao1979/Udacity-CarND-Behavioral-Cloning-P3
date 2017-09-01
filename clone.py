@@ -2,7 +2,7 @@ import csv
 import cv2
 import numpy as np
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda
+from keras.layers import Flatten, Dense, Lambda, Dropout
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import Cropping2D
 from keras.layers.pooling import MaxPooling2D
@@ -22,7 +22,7 @@ def load_driving_data():
 
     images = []
     steerings = []
-    steering_adjustment = 0.1
+    steering_adjustment = 0.2
     for line in lines:
         center_image_path = image_path(line[0])
         images.append(cv2.imread(center_image_path))
@@ -68,9 +68,11 @@ def build_lenet_model():
     model.add(Conv2D(16, (5, 5), activation = 'relu'))
     model.add(MaxPooling2D())
     model.add(Flatten())
-    # TBD: dropout
     model.add(Dense(120))
+    # dropout?
+    # model.add(Dropout(rate=0.5))
     model.add(Dense(84))
+    # model.add(Dropout(rate=0.5))
     model.add(Dense(1))
     return model
 
@@ -82,5 +84,5 @@ print('X_train.shape: {}, y_train.shape: {}'.format(X_train.shape, y_train.shape
 
 model = build_lenet_model()
 model.compile(loss='mse', optimizer='adam')
-model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, epochs = 5)
+model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, epochs = 8)
 model.save('model.h5')
