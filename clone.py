@@ -3,7 +3,7 @@ import csv
 import cv2
 import numpy as np
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda
+from keras.layers import Flatten, Dense, Lambda, Dropout
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import Cropping2D
 from keras.layers.pooling import MaxPooling2D
@@ -26,7 +26,7 @@ def load_driving_data():
 
 def generator(samples, batch_size = 32, should_augment = True):
     num_samples = len(samples)
-    steering_adjustment = 0.2
+    steering_adjustment = 0.25
     while True:
         shuffle(samples)
         for offset in range(0, num_samples, batch_size):
@@ -75,7 +75,7 @@ def resize_normalize(image, new_size):
 
 def build_lenet_model():
     model = Sequential()
-    model.add(Cropping2D(cropping = ((75, 25), (0, 0)), input_shape = (160, 320, 3)))
+    model.add(Cropping2D(cropping = ((70, 24), (0, 0)), input_shape = (160, 320, 3)))
     model.add(Lambda(resize_normalize, arguments = {'new_size': (32, 32)}))
     model.add(Conv2D(6, (5, 5), activation = 'relu'))
     model.add(MaxPooling2D())
@@ -83,13 +83,16 @@ def build_lenet_model():
     model.add(MaxPooling2D())
     model.add(Flatten())
     model.add(Dense(120))
+    # dropout?
+    # model.add(Dropout(rate=0.5))
     model.add(Dense(84))
+    # model.add(Dropout(rate=0.5))
     model.add(Dense(1))
     return model
 
 def build_nvidia_model():
     model = Sequential()
-    model.add(Cropping2D(cropping = ((75, 25), (0, 0)), input_shape = (160, 320, 3)))
+    model.add(Cropping2D(cropping = ((70, 24), (0, 0)), input_shape = (160, 320, 3)))
     model.add(Lambda(resize_normalize, arguments = {'new_size': (66, 200)}))
     model.add(Conv2D(24, kernel_size = (5, 5), strides=(2, 2), activation = 'relu'))
     model.add(Conv2D(36, kernel_size = (5, 5), strides=(2, 2), activation = 'relu'))
@@ -111,8 +114,9 @@ def train_with_generator():
     validation_generator = generator(validation_samples, batch_size = 128, should_augment = False)
 
     model = build_nvidia_model()
+    #model = build_lenet_model()
     model.compile(loss='mse', optimizer='adam')
-    model.fit_generator(train_generator, epochs = 2, steps_per_epoch=math.ceil(len(train_samples) / 32), \
+    model.fit_generator(train_generator, epochs = 5, steps_per_epoch=math.ceil(len(train_samples) / 32), \
                         validation_data=validation_generator, \
                         validation_steps = math.ceil(len(validation_samples) / 32))
 
