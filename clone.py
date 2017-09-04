@@ -1,3 +1,4 @@
+import math
 import csv
 import cv2
 import numpy as np
@@ -6,6 +7,8 @@ from keras.layers import Flatten, Dense, Lambda, Dropout
 from keras.layers.convolutional import Conv2D
 from keras.layers.convolutional import Cropping2D
 from keras.layers.pooling import MaxPooling2D
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 
 def image_path(source_path):
     filename = source_path.split('/')[-1]
@@ -13,30 +16,41 @@ def image_path(source_path):
     return current_path
 
 def load_driving_data():
-    lines = []
+    samples = []
     with open('data/driving_log.csv') as csvfile:
         reader = csv.reader(csvfile)
         next(reader)
-        for line in reader:
-            lines.append(line)
+        for sample in reader:
+            samples.append(sample)
+    return samples
 
-    images = []
-    steerings = []
+def generator(samples, batch_size = 32, should_augment = True):
+    num_samples = len(samples)
     steering_adjustment = 0.2
-    for line in lines:
-        center_image_path = image_path(line[0])
-        images.append(cv2.imread(center_image_path))
-        steerings.append(float(line[3]))
-        left_image_path = image_path(line[1])
-        images.append(cv2.imread(left_image_path))
-        steerings.append(float(line[3]) + steering_adjustment)
-        right_image_path = image_path(line[2])
-        images.append(cv2.imread(right_image_path))
-        steerings.append(float(line[3]) - steering_adjustment)
+    while True:
+        shuffle(samples)
+        for offset in range(0, num_samples, batch_size):
+            batch_samples = samples[offset:offset + batch_size]
+            images = []
+            steerings = []
+            for sample in batch_samples:
+                center_image_path = image_path(sample[0])
+                images.append(cv2.imread(center_image_path))
+                steerings.append(float(sample[3]))
+                if should_augment:
+                    left_image_path = image_path(sample[1])
+                    images.append(cv2.imread(left_image_path))
+                    steerings.append(float(sample[3]) + steering_adjustment)
+                    right_image_path = image_path(sample[2])
+                    images.append(cv2.imread(right_image_path))
+                    steerings.append(float(sample[3]) - steering_adjustment)
+            if should_augment:
+                images, steerings = augment_data(images, steerings)
+            X_train = np.array(images)
+            y_train = np.array(steerings)
+            yield (X_train, y_train)
 
-    return (images, steerings)
-
-def augment_training_data(images, steerings):
+def augment_data(images, steerings):
     augmented_images = []
     augmented_steerings = []
     for image, steering in zip(images, steerings):
@@ -92,13 +106,19 @@ def build_nvidia_model():
     model.add(Dense(1))
     return model
 
-images, steerings = load_driving_data()
-images, steerings = augment_training_data(images, steerings)
-X_train = np.array(images)
-y_train = np.array(steerings)
-print('X_train.shape: {}, y_train.shape: {}'.format(X_train.shape, y_train.shape))
+def train_with_generator():
+    samples = load_driving_data()
+    train_samples, validation_samples = train_test_split(samples, test_size = 0.2)
+    print('train_samples: {}, validation_samples: {}'.format(len(train_samples), len(validation_samples)))
+    train_generator = generator(train_samples, batch_size = 32, should_augment = True)
+    validation_generator = generator(validation_samples, batch_size = 128, should_augment = False)
 
-model = build_nvidia_model()
-model.compile(loss='mse', optimizer='adam')
-model.fit(X_train, y_train, validation_split = 0.2, shuffle = True, epochs = 8)
-model.save('model.h5')
+    model = build_nvidia_model()
+    model.compile(loss='mse', optimizer='adam')
+    model.fit_generator(train_generator, epochs = 2, steps_per_epoch=math.ceil(len(train_samples) / 32), \
+                        validation_data=validation_generator, \
+                        validation_steps = math.ceil(len(validation_samples) / 32))
+
+    model.save('model.h5')
+
+train_with_generator()
