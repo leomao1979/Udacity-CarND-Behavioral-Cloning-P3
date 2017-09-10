@@ -1,34 +1,40 @@
 import math
 import csv
 import cv2
+import os
 import numpy as np
 from keras.models import Sequential, Model
 from keras.layers import Flatten, Dense, Lambda, Dropout, Input
-from keras.layers.convolutional import Conv2D
-from keras.layers.convolutional import Cropping2D
+from keras.layers.convolutional import Conv2D, Cropping2D
 from keras.layers.pooling import MaxPooling2D
 from keras.preprocessing import image
-from keras.applications.vgg16 import VGG16, preprocess_input, decode_predictions
+from keras.applications.vgg16 import VGG16
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
-from scipy.misc import imresize
 
+# All images are saved in "data/IMG/"
 def image_path(source_path):
     filename = source_path.split('/')[-1]
     current_path = 'data/IMG/' + filename
     return current_path
 
+# Driving logs are saved in sub directories of 'data/'
 def load_driving_data(total = 0):
     samples = []
     count = 0
-    with open('data/driving_log.csv') as csvfile:
-        reader = csv.reader(csvfile)
-        next(reader)
-        for sample in reader:
-            samples.append(sample)
-            count += 1
-            if total > 0 and count == total:
-                break
+    subdirs = os.listdir('data')
+    for subdir in subdirs:
+        if (not os.path.isdir('data/' + subdir)) or subdir == 'IMG':
+            continue
+        filename = 'data/' + subdir + '/driving_log.csv'
+        with open(filename) as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)
+            for sample in reader:
+                samples.append(sample)
+                count += 1
+                if total > 0 and count == total:
+                    return samples
     return samples
 
 def generator(samples, batch_size = 32, should_augment = True, should_shuffle = True):
@@ -106,7 +112,6 @@ def build_nvidia_model():
     model.add(Dense(50))
     model.add(Dropout(0.5))
     model.add(Dense(10))
-    model.add(Dropout(0.5))
     model.add(Dense(1))
     return model
 
@@ -137,8 +142,8 @@ def train_with_generator():
 
     train_generator = generator(train_samples, batch_size = 32, should_augment = True)
     validation_generator = generator(validation_samples, batch_size = 128, should_augment = False)
-    model = build_pretrained_vgg_model()
-    #model = build_nvidia_model()
+    #model = build_pretrained_vgg_model()
+    model = build_nvidia_model()
     #model = build_lenet_model()
     model.compile(loss='mse', optimizer='adam')
     model.fit_generator(train_generator, epochs = 5, steps_per_epoch=math.ceil(len(train_samples) / 32), \
